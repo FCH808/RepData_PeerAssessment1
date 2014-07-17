@@ -1,7 +1,7 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
 author: "Fernando Hernandez"
-date: "July 15 2014"
+date: "July 18 2014"
 output:
   html_document:
     theme: journal
@@ -72,6 +72,8 @@ head(active)
 # 1.) Makes a histogram of the total number of steps taken each day
 
 # 2.) Calculates and reports the mean and median total number of steps taken per day
+
+
 
 make.sums.ggplot<- function(active.dataframe, RBrewers.colors = "Greens"){
   
@@ -155,11 +157,11 @@ make.sums.ggplot(active, "Greens")
 # 2.) Reports the 5-minute interval, on average across all the days in the dataset, which contains the maximum number of steps
 
 
-
 # 5 interval column data is from 0-60, then 100-160, etc.
-# Converts 5 minute interval data to time format (60 minutes in an hour)
+# Converts 5 minute interval data to POSIXct format (60 minutes in an hour)
 
 active$Interval <- as.POSIXct(strptime(sprintf("%04d", active$interval), "%H%M")) 
+
 
 make.max.interval.ggplot<- function(active.dataframe){
 
@@ -167,9 +169,9 @@ make.max.interval.ggplot<- function(active.dataframe){
     # then pass that transformed data to the next transform function.
   active.intervals <- active.dataframe %>%
     group_by(Interval) %>%
-    summarise(Average = mean(steps, na.rm = TRUE) ) %>%
+    summarise(Average = mean(steps, na.rm = TRUE)) %>%
     arrange(Interval)
-    
+
 
     # Pulls out the row which had the max average into a one row data.frame
   max.active <- active.intervals[which.max(active.intervals$Average),]
@@ -216,7 +218,7 @@ make.max.interval.ggplot(active)
 # NA's :2304 
 summary(active)
 # Subset out all rows with an NA value, 2304 rows
-NA.active<-subset(active, !complete.cases(active))
+NA.active <- subset(active, !complete.cases(active))
 # All NAs are contained in 8 days, which have all steps missing in each day 
 table(NA.active$date)
 ```
@@ -266,36 +268,17 @@ interval.summary(active, "08:35")
 
 ```
 
-```{r Impute, cache=TRUE}
-# We can use this same process to get breakdowns of each interval for each Weekday, and fill in the NAs with the mean of each interval depending on the day just in case there is a significant difference between intervals depending on the day of the week. (i.e. Weekends may differ from Weekdays)
+```{r Impute}
+
+# To impute, we subgroup the data by Weekday and Interval and fill in any missing values with the average for that particular Interval/Weekday combination using the dplyr package.
+
+imputed <- active %>%
+  mutate(steps = as.numeric(steps)) %>%
+  group_by(Interval, Weekday) %>%
+  mutate(steps = ifelse(is.na(steps), mean(steps, na.rm = TRUE), steps)) %>%
+  mutate(steps = round(steps, 2))
 
 
-impute.active<- function(active){
-
-  imputed<- active[1,]
-  # Create an empty.frame with the same structure to append the imputed rows to. This is to rebuild the df, with the mean of each interval/Weekday combination used to fill each NA.
-  imputed<- imputed[-1,]
-  
-  for (i in unique(active$interval)){
-    for (j in unique(active$Weekday)){
-      temp.df<- subset(active, active$interval == i & active$Weekday == j)
-      temp.mean<- mean(temp.df$steps, na.rm = TRUE)
-      temp.df$steps[is.na(temp.df$steps)]<- round(temp.mean, 2)
-      imputed<- rbind(imputed, temp.df)
-    }
-  }
-  # http://stackoverflow.com/questions/1296646/how-to-sort-a-dataframe-by-columns-in-r
-  imputed<- arrange(imputed, date, interval)
-  return(imputed)
-}
-
-
-
-# Pass the original database into the function and assign the resulting database with imputed values to "imputed"
-
-# 3.) Create a new dataset that is equal to the original dataset but with the missing data filled in.
-
-imputed<- impute.active(active)
 
 ```
 
@@ -328,13 +311,14 @@ imputed.check<- function(original.df, imputed.df, check.interval, check.Weekday)
 imputed.check(active, imputed, 835, "Monday")
 # Quick check on the rows of all Mondays in interval 835 in the original set vs. the imputed set
 
-# Mean without the NAs for this interval/day combination is 225.8571
+# Mean without the NAs for this interval/day combination is 225.86
 
 # This mean is filled into the NA slots, while the remaining values remain unchanged.
 
 
 # Integrity Check #2:
 imputed.check(active, imputed, 1005, "Thursday")
+
 # Quick check on the rows of all Thursday in interval 1005 in the original set vs. the imputed set. Zero is filled into this interval/day combination since it is all zeros.
 
 
@@ -367,20 +351,10 @@ make.sums.ggplot(imputed, "Blues")
 ## Are there differences in activity patterns between Weekdays and Weekends?
 
 ```{r}
-# 1.) Creates a new factor variable in the dataset with two levels - "Weekday" and "Weekend" indicating whether a given date is a Weekday or Weekend day.
+# 1.) Add Weekend column
 
-# Function to add Weekend/Weekday factor to a dataframe that has a Weekdays column
-
-make.Weekends<- function(active.df){
-  active.df$Weekend<- as.character(active.df$Weekday)
-  active.df$Weekend[active.df$Weekend == "Saturday"| active.df$Weekend =="Sunday"]<- "Weekend"
-  active.df$Weekend[active.df$Weekend != "Weekend"]<- "Weekday"
-  active.df$Weekend<- factor(active.df$Weekend)
-  return (active.df)
-}
-
-# Use the function to add a Weekend column
-imputed<- make.Weekends(imputed)
+imputed<- imputed %>% 
+  mutate(Weekend = ifelse(Weekday %in% c("Saturday", "Sunday"), "Weekend", "Weekday"))
 
 # Make sure function worked with table()
 table(imputed$Weekend, imputed$Weekday)
