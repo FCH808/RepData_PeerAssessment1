@@ -66,7 +66,7 @@ code > span.er { color: #ff0000; font-weight: bold; }
 <div id="header">
 <h1 class="title">Reproducible Research: Peer Assessment 1</h1>
 <h4 class="author"><em>Fernando Hernandez</em></h4>
-<h4 class="date"><em>July 15 2014</em></h4>
+<h4 class="date"><em>July 18 2014</em></h4>
 </div>
 
 
@@ -130,6 +130,8 @@ active$Weekday&lt;-<span class="kw">wday</span>(active$date, <span class="dt">la
 <span class="co"># 1.) Makes a histogram of the total number of steps taken each day</span>
 
 <span class="co"># 2.) Calculates and reports the mean and median total number of steps taken per day</span>
+
+
 
 make.sums.ggplot&lt;-<span class="st"> </span>function(active.dataframe, <span class="dt">RBrewers.colors =</span> <span class="st">&quot;Greens&quot;</span>){
   
@@ -212,11 +214,11 @@ make.sums.ggplot&lt;-<span class="st"> </span>function(active.dataframe, <span c
 <span class="co"># 2.) Reports the 5-minute interval, on average across all the days in the dataset, which contains the maximum number of steps</span>
 
 
-
 <span class="co"># 5 interval column data is from 0-60, then 100-160, etc.</span>
-<span class="co"># Converts 5 minute interval data to time format (60 minutes in an hour)</span>
+<span class="co"># Converts 5 minute interval data to POSIXct format (60 minutes in an hour)</span>
 
 active$Interval &lt;-<span class="st"> </span><span class="kw">as.POSIXct</span>(<span class="kw">strptime</span>(<span class="kw">sprintf</span>(<span class="st">&quot;%04d&quot;</span>, active$interval), <span class="st">&quot;%H%M&quot;</span>)) 
+
 
 make.max.interval.ggplot&lt;-<span class="st"> </span>function(active.dataframe){
 
@@ -224,9 +226,8 @@ make.max.interval.ggplot&lt;-<span class="st"> </span>function(active.dataframe)
     <span class="co"># then pass that transformed data to the next transform function.</span>
   active.intervals &lt;-<span class="st"> </span>active.dataframe %&gt;%
 <span class="st">    </span><span class="kw">group_by</span>(Interval) %&gt;%
-<span class="st">    </span><span class="kw">summarise</span>(<span class="dt">Average =</span> <span class="kw">mean</span>(steps, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>) ) %&gt;%
+<span class="st">    </span><span class="kw">summarise</span>(<span class="dt">Average =</span> <span class="kw">mean</span>(steps, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>)) %&gt;%
 <span class="st">    </span><span class="kw">arrange</span>(Interval)
-    
 
     <span class="co"># Pulls out the row which had the max average into a one row data.frame</span>
   max.active &lt;-<span class="st"> </span>active.intervals[<span class="kw">which.max</span>(active.intervals$Average),]
@@ -279,15 +280,15 @@ make.max.interval.ggplot&lt;-<span class="st"> </span>function(active.dataframe)
 ##  Max.   :806.0   Max.   :2012-11-30   Max.   :2355   Friday   :2592  
 ##  NA's   :2304                                        Saturday :2304  
 ##     Interval                  
-##  Min.   :2014-07-15 00:00:00  
-##  1st Qu.:2014-07-15 05:58:45  
-##  Median :2014-07-15 11:57:30  
-##  Mean   :2014-07-15 11:57:30  
-##  3rd Qu.:2014-07-15 17:56:15  
-##  Max.   :2014-07-15 23:55:00  
+##  Min.   :2014-07-18 00:00:00  
+##  1st Qu.:2014-07-18 05:58:45  
+##  Median :2014-07-18 11:57:30  
+##  Mean   :2014-07-18 11:57:30  
+##  3rd Qu.:2014-07-18 17:56:15  
+##  Max.   :2014-07-18 23:55:00  
 ## </code></pre>
 <pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Subset out all rows with an NA value, 2304 rows</span>
-NA.active&lt;-<span class="kw">subset</span>(active, !<span class="kw">complete.cases</span>(active))
+NA.active &lt;-<span class="st"> </span><span class="kw">subset</span>(active, !<span class="kw">complete.cases</span>(active))
 <span class="co"># All NAs are contained in 8 days, which have all steps missing in each day </span>
 <span class="kw">table</span>(NA.active$date)</code></pre>
 <pre><code>## 
@@ -344,35 +345,13 @@ interval.summary &lt;-<span class="st"> </span>function(active_frame, <span clas
 ## 5     08:35  Thursday   252.1
 ## 6     08:35    Friday   279.1
 ## 7     08:35  Saturday   155.6</code></pre>
-<pre class="sourceCode r"><code class="sourceCode r"><span class="co"># We can use this same process to get breakdowns of each interval for each Weekday, and fill in the NAs with the mean of each interval depending on the day just in case there is a significant difference between intervals depending on the day of the week. (i.e. Weekends may differ from Weekdays)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="co"># To impute, we subgroup the data by Weekday and Interval and fill in any missing values with the average for that particular Interval/Weekday combination using the dplyr package.</span>
 
-
-impute.active&lt;-<span class="st"> </span>function(active){
-
-  imputed&lt;-<span class="st"> </span>active[<span class="dv">1</span>,]
-  <span class="co"># Create an empty.frame with the same structure to append the imputed rows to. This is to rebuild the df, with the mean of each interval/Weekday combination used to fill each NA.</span>
-  imputed&lt;-<span class="st"> </span>imputed[-<span class="dv">1</span>,]
-  
-  for (i in <span class="kw">unique</span>(active$interval)){
-    for (j in <span class="kw">unique</span>(active$Weekday)){
-      temp.df&lt;-<span class="st"> </span><span class="kw">subset</span>(active, active$interval ==<span class="st"> </span>i &amp;<span class="st"> </span>active$Weekday ==<span class="st"> </span>j)
-      temp.mean&lt;-<span class="st"> </span><span class="kw">mean</span>(temp.df$steps, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>)
-      temp.df$steps[<span class="kw">is.na</span>(temp.df$steps)]&lt;-<span class="st"> </span><span class="kw">round</span>(temp.mean, <span class="dv">2</span>)
-      imputed&lt;-<span class="st"> </span><span class="kw">rbind</span>(imputed, temp.df)
-    }
-  }
-  <span class="co"># http://stackoverflow.com/questions/1296646/how-to-sort-a-dataframe-by-columns-in-r</span>
-  imputed&lt;-<span class="st"> </span><span class="kw">arrange</span>(imputed, date, interval)
-  <span class="kw">return</span>(imputed)
-}
-
-
-
-<span class="co"># Pass the original database into the function and assign the resulting database with imputed values to &quot;imputed&quot;</span>
-
-<span class="co"># 3.) Create a new dataset that is equal to the original dataset but with the missing data filled in.</span>
-
-imputed&lt;-<span class="st"> </span><span class="kw">impute.active</span>(active)</code></pre>
+imputed &lt;-<span class="st"> </span>active %&gt;%
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">steps =</span> <span class="kw">as.numeric</span>(steps)) %&gt;%
+<span class="st">  </span><span class="kw">group_by</span>(Interval, Weekday) %&gt;%
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">steps =</span> <span class="kw">ifelse</span>(<span class="kw">is.na</span>(steps), <span class="kw">mean</span>(steps, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>), steps)) %&gt;%
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">steps =</span> <span class="kw">round</span>(steps, <span class="dv">2</span>))</code></pre>
 <pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Calling our previous function, the means, min and max, don't change, and now NA's are filled in.</span>
 
 <span class="co">#interval.summary(imputed, 835) #Not called in RMarkdown for brevity</span>
@@ -400,32 +379,35 @@ imputed.check&lt;-<span class="st"> </span>function(original.df, imputed.df, che
 <span class="kw">imputed.check</span>(active, imputed, <span class="dv">835</span>, <span class="st">&quot;Monday&quot;</span>)</code></pre>
 <pre><code>## [1] &quot;Original interval/day combination&quot;
 ##       steps       date interval Weekday            Interval
-## 104      NA 2012-10-01      835  Monday 2014-07-15 08:35:00
-## 2120     NA 2012-10-08      835  Monday 2014-07-15 08:35:00
-## 4136    786 2012-10-15      835  Monday 2014-07-15 08:35:00
-## 6152     25 2012-10-22      835  Monday 2014-07-15 08:35:00
-## 8168     56 2012-10-29      835  Monday 2014-07-15 08:35:00
-## 10184   131 2012-11-05      835  Monday 2014-07-15 08:35:00
-## 12200   534 2012-11-12      835  Monday 2014-07-15 08:35:00
-## 14216    44 2012-11-19      835  Monday 2014-07-15 08:35:00
-## 16232     5 2012-11-26      835  Monday 2014-07-15 08:35:00
+## 104      NA 2012-10-01      835  Monday 2014-07-18 08:35:00
+## 2120     NA 2012-10-08      835  Monday 2014-07-18 08:35:00
+## 4136    786 2012-10-15      835  Monday 2014-07-18 08:35:00
+## 6152     25 2012-10-22      835  Monday 2014-07-18 08:35:00
+## 8168     56 2012-10-29      835  Monday 2014-07-18 08:35:00
+## 10184   131 2012-11-05      835  Monday 2014-07-18 08:35:00
+## 12200   534 2012-11-12      835  Monday 2014-07-18 08:35:00
+## 14216    44 2012-11-19      835  Monday 2014-07-18 08:35:00
+## 16232     5 2012-11-26      835  Monday 2014-07-18 08:35:00
 ## [1] &quot;&quot;
 ## [1] &quot;Mean for original dataset (with na.rm = TRUE) NAs is: 225.86&quot;
 ## [1] &quot;&quot;
 ## [1] &quot;Imputed interval/day combination&quot;
+## Source: local data frame [9 x 5]
+## Groups: 
+## 
 ##       steps       date interval Weekday            Interval
-## 104   225.9 2012-10-01      835  Monday 2014-07-15 08:35:00
-## 2120  225.9 2012-10-08      835  Monday 2014-07-15 08:35:00
-## 4136  786.0 2012-10-15      835  Monday 2014-07-15 08:35:00
-## 6152   25.0 2012-10-22      835  Monday 2014-07-15 08:35:00
-## 8168   56.0 2012-10-29      835  Monday 2014-07-15 08:35:00
-## 10184 131.0 2012-11-05      835  Monday 2014-07-15 08:35:00
-## 12200 534.0 2012-11-12      835  Monday 2014-07-15 08:35:00
-## 14216  44.0 2012-11-19      835  Monday 2014-07-15 08:35:00
-## 16232   5.0 2012-11-26      835  Monday 2014-07-15 08:35:00</code></pre>
+## 104   225.9 2012-10-01      835  Monday 2014-07-18 08:35:00
+## 2120  225.9 2012-10-08      835  Monday 2014-07-18 08:35:00
+## 4136  786.0 2012-10-15      835  Monday 2014-07-18 08:35:00
+## 6152   25.0 2012-10-22      835  Monday 2014-07-18 08:35:00
+## 8168   56.0 2012-10-29      835  Monday 2014-07-18 08:35:00
+## 10184 131.0 2012-11-05      835  Monday 2014-07-18 08:35:00
+## 12200 534.0 2012-11-12      835  Monday 2014-07-18 08:35:00
+## 14216  44.0 2012-11-19      835  Monday 2014-07-18 08:35:00
+## 16232   5.0 2012-11-26      835  Monday 2014-07-18 08:35:00</code></pre>
 <pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Quick check on the rows of all Mondays in interval 835 in the original set vs. the imputed set</span>
 
-<span class="co"># Mean without the NAs for this interval/day combination is 225.8571</span>
+<span class="co"># Mean without the NAs for this interval/day combination is 225.86</span>
 
 <span class="co"># This mean is filled into the NA slots, while the remaining values remain unchanged.</span>
 
@@ -434,29 +416,32 @@ imputed.check&lt;-<span class="st"> </span>function(original.df, imputed.df, che
 <span class="kw">imputed.check</span>(active, imputed, <span class="dv">1005</span>, <span class="st">&quot;Thursday&quot;</span>)</code></pre>
 <pre><code>## [1] &quot;Original interval/day combination&quot;
 ##       steps       date interval  Weekday            Interval
-## 986       0 2012-10-04     1005 Thursday 2014-07-15 10:05:00
-## 3002      0 2012-10-11     1005 Thursday 2014-07-15 10:05:00
-## 5018      0 2012-10-18     1005 Thursday 2014-07-15 10:05:00
-## 7034      0 2012-10-25     1005 Thursday 2014-07-15 10:05:00
-## 9050     NA 2012-11-01     1005 Thursday 2014-07-15 10:05:00
-## 11066     0 2012-11-08     1005 Thursday 2014-07-15 10:05:00
-## 13082     0 2012-11-15     1005 Thursday 2014-07-15 10:05:00
-## 15098     0 2012-11-22     1005 Thursday 2014-07-15 10:05:00
-## 17114     0 2012-11-29     1005 Thursday 2014-07-15 10:05:00
+## 986       0 2012-10-04     1005 Thursday 2014-07-18 10:05:00
+## 3002      0 2012-10-11     1005 Thursday 2014-07-18 10:05:00
+## 5018      0 2012-10-18     1005 Thursday 2014-07-18 10:05:00
+## 7034      0 2012-10-25     1005 Thursday 2014-07-18 10:05:00
+## 9050     NA 2012-11-01     1005 Thursday 2014-07-18 10:05:00
+## 11066     0 2012-11-08     1005 Thursday 2014-07-18 10:05:00
+## 13082     0 2012-11-15     1005 Thursday 2014-07-18 10:05:00
+## 15098     0 2012-11-22     1005 Thursday 2014-07-18 10:05:00
+## 17114     0 2012-11-29     1005 Thursday 2014-07-18 10:05:00
 ## [1] &quot;&quot;
 ## [1] &quot;Mean for original dataset (with na.rm = TRUE) NAs is: 0&quot;
 ## [1] &quot;&quot;
 ## [1] &quot;Imputed interval/day combination&quot;
+## Source: local data frame [9 x 5]
+## Groups: 
+## 
 ##       steps       date interval  Weekday            Interval
-## 986       0 2012-10-04     1005 Thursday 2014-07-15 10:05:00
-## 3002      0 2012-10-11     1005 Thursday 2014-07-15 10:05:00
-## 5018      0 2012-10-18     1005 Thursday 2014-07-15 10:05:00
-## 7034      0 2012-10-25     1005 Thursday 2014-07-15 10:05:00
-## 9050      0 2012-11-01     1005 Thursday 2014-07-15 10:05:00
-## 11066     0 2012-11-08     1005 Thursday 2014-07-15 10:05:00
-## 13082     0 2012-11-15     1005 Thursday 2014-07-15 10:05:00
-## 15098     0 2012-11-22     1005 Thursday 2014-07-15 10:05:00
-## 17114     0 2012-11-29     1005 Thursday 2014-07-15 10:05:00</code></pre>
+## 986       0 2012-10-04     1005 Thursday 2014-07-18 10:05:00
+## 3002      0 2012-10-11     1005 Thursday 2014-07-18 10:05:00
+## 5018      0 2012-10-18     1005 Thursday 2014-07-18 10:05:00
+## 7034      0 2012-10-25     1005 Thursday 2014-07-18 10:05:00
+## 9050      0 2012-11-01     1005 Thursday 2014-07-18 10:05:00
+## 11066     0 2012-11-08     1005 Thursday 2014-07-18 10:05:00
+## 13082     0 2012-11-15     1005 Thursday 2014-07-18 10:05:00
+## 15098     0 2012-11-22     1005 Thursday 2014-07-18 10:05:00
+## 17114     0 2012-11-29     1005 Thursday 2014-07-18 10:05:00</code></pre>
 <pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Quick check on the rows of all Thursday in interval 1005 in the original set vs. the imputed set. Zero is filled into this interval/day combination since it is all zeros.</span>
 
 
@@ -464,27 +449,30 @@ imputed.check&lt;-<span class="st"> </span>function(original.df, imputed.df, che
 <span class="kw">imputed.check</span>(active, imputed, <span class="dv">1600</span>, <span class="st">&quot;Saturday&quot;</span>)</code></pre>
 <pre><code>## [1] &quot;Original interval/day combination&quot;
 ##       steps       date interval  Weekday            Interval
-## 1633     27 2012-10-06     1600 Saturday 2014-07-15 16:00:00
-## 3649      0 2012-10-13     1600 Saturday 2014-07-15 16:00:00
-## 5665     53 2012-10-20     1600 Saturday 2014-07-15 16:00:00
-## 7681      0 2012-10-27     1600 Saturday 2014-07-15 16:00:00
-## 9697      0 2012-11-03     1600 Saturday 2014-07-15 16:00:00
-## 11713    NA 2012-11-10     1600 Saturday 2014-07-15 16:00:00
-## 13729     0 2012-11-17     1600 Saturday 2014-07-15 16:00:00
-## 15745   785 2012-11-24     1600 Saturday 2014-07-15 16:00:00
+## 1633     27 2012-10-06     1600 Saturday 2014-07-18 16:00:00
+## 3649      0 2012-10-13     1600 Saturday 2014-07-18 16:00:00
+## 5665     53 2012-10-20     1600 Saturday 2014-07-18 16:00:00
+## 7681      0 2012-10-27     1600 Saturday 2014-07-18 16:00:00
+## 9697      0 2012-11-03     1600 Saturday 2014-07-18 16:00:00
+## 11713    NA 2012-11-10     1600 Saturday 2014-07-18 16:00:00
+## 13729     0 2012-11-17     1600 Saturday 2014-07-18 16:00:00
+## 15745   785 2012-11-24     1600 Saturday 2014-07-18 16:00:00
 ## [1] &quot;&quot;
 ## [1] &quot;Mean for original dataset (with na.rm = TRUE) NAs is: 123.57&quot;
 ## [1] &quot;&quot;
 ## [1] &quot;Imputed interval/day combination&quot;
+## Source: local data frame [8 x 5]
+## Groups: 
+## 
 ##       steps       date interval  Weekday            Interval
-## 1633   27.0 2012-10-06     1600 Saturday 2014-07-15 16:00:00
-## 3649    0.0 2012-10-13     1600 Saturday 2014-07-15 16:00:00
-## 5665   53.0 2012-10-20     1600 Saturday 2014-07-15 16:00:00
-## 7681    0.0 2012-10-27     1600 Saturday 2014-07-15 16:00:00
-## 9697    0.0 2012-11-03     1600 Saturday 2014-07-15 16:00:00
-## 11713 123.6 2012-11-10     1600 Saturday 2014-07-15 16:00:00
-## 13729   0.0 2012-11-17     1600 Saturday 2014-07-15 16:00:00
-## 15745 785.0 2012-11-24     1600 Saturday 2014-07-15 16:00:00</code></pre>
+## 1633   27.0 2012-10-06     1600 Saturday 2014-07-18 16:00:00
+## 3649    0.0 2012-10-13     1600 Saturday 2014-07-18 16:00:00
+## 5665   53.0 2012-10-20     1600 Saturday 2014-07-18 16:00:00
+## 7681    0.0 2012-10-27     1600 Saturday 2014-07-18 16:00:00
+## 9697    0.0 2012-11-03     1600 Saturday 2014-07-18 16:00:00
+## 11713 123.6 2012-11-10     1600 Saturday 2014-07-18 16:00:00
+## 13729   0.0 2012-11-17     1600 Saturday 2014-07-18 16:00:00
+## 15745 785.0 2012-11-24     1600 Saturday 2014-07-18 16:00:00</code></pre>
 <pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Quick check on the rows of all Thursday in interval 1600 in the original set vs. the imputed set. This value is filled in correctly as well.</span></code></pre>
 <pre class="sourceCode r"><code class="sourceCode r"><span class="co">#4.) Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day.  </span>
 
@@ -503,20 +491,10 @@ imputed.check&lt;-<span class="st"> </span>function(original.df, imputed.df, che
 </div>
 <div id="are-there-differences-in-activity-patterns-between-weekdays-and-weekends" class="section level2">
 <h2>Are there differences in activity patterns between Weekdays and Weekends?</h2>
-<pre class="sourceCode r"><code class="sourceCode r"><span class="co"># 1.) Creates a new factor variable in the dataset with two levels - &quot;Weekday&quot; and &quot;Weekend&quot; indicating whether a given date is a Weekday or Weekend day.</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="co"># 1.) Add Weekend column</span>
 
-<span class="co"># Function to add Weekend/Weekday factor to a dataframe that has a Weekdays column</span>
-
-make.Weekends&lt;-<span class="st"> </span>function(active.df){
-  active.df$Weekend&lt;-<span class="st"> </span><span class="kw">as.character</span>(active.df$Weekday)
-  active.df$Weekend[active.df$Weekend ==<span class="st"> &quot;Saturday&quot;</span>|<span class="st"> </span>active.df$Weekend ==<span class="st">&quot;Sunday&quot;</span>]&lt;-<span class="st"> &quot;Weekend&quot;</span>
-  active.df$Weekend[active.df$Weekend !=<span class="st"> &quot;Weekend&quot;</span>]&lt;-<span class="st"> &quot;Weekday&quot;</span>
-  active.df$Weekend&lt;-<span class="st"> </span><span class="kw">factor</span>(active.df$Weekend)
-  <span class="kw">return</span> (active.df)
-}
-
-<span class="co"># Use the function to add a Weekend column</span>
-imputed&lt;-<span class="st"> </span><span class="kw">make.Weekends</span>(imputed)
+imputed&lt;-<span class="st"> </span>imputed %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Weekend =</span> <span class="kw">ifelse</span>(Weekday %in%<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;Saturday&quot;</span>, <span class="st">&quot;Sunday&quot;</span>), <span class="st">&quot;Weekend&quot;</span>, <span class="st">&quot;Weekday&quot;</span>))
 
 <span class="co"># Make sure function worked with table()</span>
 <span class="kw">table</span>(imputed$Weekend, imputed$Weekday)</code></pre>
